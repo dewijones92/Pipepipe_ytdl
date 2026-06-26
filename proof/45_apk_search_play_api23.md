@@ -1,7 +1,17 @@
 # Proof: yt-dlp-backed search → resolve → play (incl. live HLS) on Android 6.0 (API 23)
 
-`apk-repro/` auto-runs the full client loop: yt-dlp **searches** YouTube, **resolves** the top
-result's stream, and ExoPlayer **plays** it — all on an API-23 emulator.
+`apk-repro/` is a small but **interactive** yt-dlp-backed YouTube client: a search box + a
+tappable results list + a video surface. Type a query → yt-dlp **searches** YouTube → tap a
+result → yt-dlp **resolves** its stream → ExoPlayer **plays** it — all on an API-23 emulator.
+On launch it auto-runs a default query and auto-plays the top hit, so the whole loop is also
+verifiable headlessly (it writes `SEARCH_OK`/`RESOLVE_OK`/`PLAYBACK_OK` markers).
+
+## The interactive client (screenshots, API-23 emulator)
+Search results from on-device yt-dlp, then the tapped result playing — both on Android 6.0:
+
+| Search results | Result playing |
+|---|---|
+| ![search results list](img/search_list_api23.png) | ![tapped result playing](img/search_play_api23.png) |
 
 ## Result
 ```
@@ -37,9 +47,3 @@ Python process, result caching, prefetch on hover) but aren't proven here.
 So the whole loop a NewPipe-style client performs — search, resolve, play (progressive **and**
 live HLS) — runs on **yt-dlp on Android 6.0**. Combined with `proof/44` (progressive video) this
 covers both the static and live paths.
-
-## Visual proof
-The resolved live stream rendering real video frames in a `PlayerView`, in our app
-(`ytdlrepro`) on the API-23 emulator — sourced entirely via on-device yt-dlp:
-
-![yt-dlp-resolved live stream playing on Android 6.0](img/play_api23_lofi.png)

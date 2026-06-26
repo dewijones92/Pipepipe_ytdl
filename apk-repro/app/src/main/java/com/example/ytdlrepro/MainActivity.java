@@ -5,7 +5,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.widget.TextView;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.Toast;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -17,110 +24,157 @@ import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
 import com.yausername.youtubedl_android.YoutubeDLResponse;
 import com.yausername.youtubedl_android.mapper.VideoInfo;
-import com.yausername.youtubedl_android.mapper.VideoFormat;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * PoC: a yt-dlp-backed YouTube *client loop* on Android 6.0 (API 23):
- *   yt-dlp SEARCH -> resolve the top result -> ExoPlayer PLAY.
- * Auto-runs a query so it's verifiable headlessly. Reports SEARCH / RESOLVE / PLAYBACK markers.
+ * PoC: an *interactive* yt-dlp-backed YouTube mini-client on Android 6.0 (API 23).
+ *   type a query -> yt-dlp SEARCH -> tap a result -> yt-dlp RESOLVE -> ExoPlayer PLAY.
+ * On launch it auto-runs a default query and auto-plays the top hit, so the whole loop
+ * is still verifiable headlessly (writes SEARCH/RESOLVE/PLAYBACK markers to result.txt).
  */
 public class MainActivity extends Activity {
     static final String TAG = "YTDLREPRO";
     static final String QUERY = "lofi hip hop";
-    private TextView tv;
+
+    private EditText queryBox;
+    private ArrayAdapter<String> adapter;
+    private final List<String[]> results = new ArrayList<>();   // {id, title}
+    private PlayerView playerView;
+    private ExoPlayer player;
+
     private final StringBuilder report = new StringBuilder();
     private final StringBuilder playerErr = new StringBuilder();
-    private long prepNanos = 0L;     // when prepare() was called
-    private long readyMs = -1L;      // time-to-first-ready since prepare()
+    private long prepNanos = 0L;
+    private long readyMs = -1L;
+    private boolean autoPlayPending = true;   // auto-play the top hit of the first (auto) search
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
-        tv = new TextView(this); tv.setText("searching..."); setContentView(tv);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        setContentView(buildUi());
         new Thread(() -> {
-            long t0 = System.nanoTime();
             try { YoutubeDL.getInstance().init(getApplication()); } catch (Throwable t) {
                 report.append("INIT_FAIL ").append(t.getMessage()); finishReport(); return;
             }
-            long tInit = ms(t0);
-            long t1 = System.nanoTime();
-            String[] top = search(QUERY, 8);          // {id, title}
-            long tSearch = ms(t1);
-            if (top == null) { finishReport(); return; }
-            long t2 = System.nanoTime();
-            String url = resolve(top);                // resolve the top result
-            long tResolve = ms(t2);
-            if (url == null) { finishReport(); return; }
-            report.append("TIMING init=").append(tInit).append("ms search=").append(tSearch)
-                  .append("ms resolve=").append(tResolve).append("ms\n");
-            runOnUiThread(() -> startPlayback(url));
-        }, "client").start();
+            runOnUiThread(() -> { queryBox.setText(QUERY); doSearch(QUERY); });
+        }, "init").start();
     }
 
-    /** Elapsed milliseconds since a System.nanoTime() mark. */
+    /** Programmatic layout: [search box | button] / results list / video surface. */
+    private LinearLayout buildUi() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        queryBox = new EditText(this);
+        queryBox.setHint("search YouTube");
+        queryBox.setSingleLine(true);
+        bar.addView(queryBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button go = new Button(this);
+        go.setText("Search");
+        go.setOnClickListener(v -> doSearch(queryBox.getText().toString().trim()));
+        bar.addView(go, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ListView list = new ListView(this);
+        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
+        list.setAdapter(adapter);
+        list.setOnItemClickListener((p, v, pos, id) -> { if (pos < results.size()) resolveAndPlay(pos); });
+        root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        playerView = new PlayerView(this);
+        playerView.setUseController(false);
+        // weight 1 so list + player split the space below the bar (a fixed height bigger
+        // than the screen would squeeze the list to zero — the earlier layout bug).
+        root.addView(playerView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        return root;
+    }
+
     private static long ms(long startNanos) { return (System.nanoTime() - startNanos) / 1_000_000L; }
 
-    /** yt-dlp search -> list of results; returns the top {id,title} or null. */
-    private String[] search(String query, int n) {
-        try {
-            YoutubeDLRequest req = new YoutubeDLRequest("ytsearch" + n + ":" + query);
-            req.addOption("--flat-playlist");
-            req.addOption("--print", "%(id)s|%(title)s");
-            YoutubeDLResponse resp = YoutubeDL.getInstance().execute(req);
-            List<String[]> results = new ArrayList<>();
-            for (String line : resp.getOut().split("\n")) {
-                line = line.trim();
-                int bar = line.indexOf('|');
-                if (bar > 0) results.add(new String[]{line.substring(0, bar), line.substring(bar + 1)});
+    /** yt-dlp search -> populate the list (off the UI thread). */
+    private void doSearch(String query) {
+        if (query.isEmpty()) return;
+        Toast.makeText(this, "searching: " + query, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            long t1 = System.nanoTime();
+            final List<String[]> found = new ArrayList<>();
+            try {
+                YoutubeDLRequest req = new YoutubeDLRequest("ytsearch8:" + query);
+                req.addOption("--flat-playlist");
+                req.addOption("--print", "%(id)s|%(title)s");
+                YoutubeDLResponse resp = YoutubeDL.getInstance().execute(req);
+                for (String line : resp.getOut().split("\n")) {
+                    line = line.trim();
+                    int bar = line.indexOf('|');
+                    if (bar > 0) found.add(new String[]{line.substring(0, bar), line.substring(bar + 1)});
+                }
+            } catch (Throwable t) {
+                report.append("SEARCH_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
+                finishReport(); return;
             }
-            if (results.isEmpty()) { report.append("SEARCH_FAIL no results\n"); return null; }
-            report.append("SEARCH_OK n=").append(results.size())
-                  .append(" top='").append(results.get(0)[1]).append("'\n");
-            for (int i = 1; i < Math.min(results.size(), 4); i++)
-                report.append("   #").append(i + 1).append(" ").append(results.get(i)[1]).append("\n");
-            return results.get(0);
-        } catch (Throwable t) {
-            report.append("SEARCH_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
-            return null;
-        }
+            long tSearch = ms(t1);
+            if (found.isEmpty()) { report.append("SEARCH_FAIL no results\n"); finishReport(); return; }
+            report.append("SEARCH_OK n=").append(found.size()).append(" top='").append(found.get(0)[1])
+                  .append("' search=").append(tSearch).append("ms\n");
+            runOnUiThread(() -> {
+                results.clear(); results.addAll(found);
+                adapter.clear();
+                for (String[] r : found) adapter.add(r[1]);
+                adapter.notifyDataSetChanged();
+                if (autoPlayPending) {   // prove the full loop headlessly on the first search
+                    autoPlayPending = false;
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (!results.isEmpty()) resolveAndPlay(0);
+                    }, 12000);   // leave time to screenshot the populated list first
+                }
+            });
+        }, "search").start();
     }
 
-    /** Resolve a video id -> playable stream URL via yt-dlp. */
-    private String resolve(String[] idTitle) {
-        try {
-            YoutubeDLRequest req = new YoutubeDLRequest("https://www.youtube.com/watch?v=" + idTitle[0]);
-            req.addOption("-f", "18/best[ext=mp4][height<=?480]/best");
-            VideoInfo info = YoutubeDL.getInstance().getInfo(req);
-            String u = info.getUrl();
-            if ((u == null || u.isEmpty()) && info.getFormats() != null && !info.getFormats().isEmpty())
-                u = info.getFormats().get(info.getFormats().size() - 1).getUrl();
-            if (u == null || u.isEmpty()) { report.append("RESOLVE_FAIL no url\n"); return null; }
-            report.append("RESOLVE_OK playing='").append(info.getTitle()).append("'\n");
-            return u;
-        } catch (Throwable t) {
-            report.append("RESOLVE_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
-            return null;
-        }
+    /** Resolve the tapped result via yt-dlp, then play it. */
+    private void resolveAndPlay(int pos) {
+        final String[] idTitle = results.get(pos);
+        Toast.makeText(this, "resolving: " + idTitle[1], Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            long t2 = System.nanoTime();
+            String url;
+            try {
+                YoutubeDLRequest req = new YoutubeDLRequest("https://www.youtube.com/watch?v=" + idTitle[0]);
+                req.addOption("-f", "18/best[ext=mp4][height<=?480]/best");
+                VideoInfo info = YoutubeDL.getInstance().getInfo(req);
+                url = info.getUrl();
+                if ((url == null || url.isEmpty()) && info.getFormats() != null && !info.getFormats().isEmpty())
+                    url = info.getFormats().get(info.getFormats().size() - 1).getUrl();
+                if (url == null || url.isEmpty()) { report.append("RESOLVE_FAIL no url\n"); finishReport(); return; }
+                report.append("RESOLVE_OK playing='").append(info.getTitle()).append("' resolve=").append(ms(t2)).append("ms\n");
+            } catch (Throwable t) {
+                report.append("RESOLVE_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
+                finishReport(); return;
+            }
+            final String furl = url;
+            runOnUiThread(() -> startPlayback(furl));
+        }, "resolve").start();
     }
 
     private void startPlayback(String url) {
         try {
-            ExoPlayer player = new ExoPlayer.Builder(this).build();
-            PlayerView pv = new PlayerView(this);   // visible video surface
-            pv.setUseController(false);
-            setContentView(pv);
-            pv.setPlayer(player);
-            player.addListener(new Player.Listener() {
-                @Override public void onPlayerError(PlaybackException e) {
-                    playerErr.append(e.getErrorCodeName()).append(": ").append(e.getMessage());
-                }
-                @Override public void onPlaybackStateChanged(int state) {
-                    if (state == Player.STATE_READY && readyMs < 0) readyMs = ms(prepNanos);
-                }
-            });
+            if (player == null) {
+                player = new ExoPlayer.Builder(this).build();
+                player.addListener(new Player.Listener() {
+                    @Override public void onPlayerError(PlaybackException e) {
+                        playerErr.append(e.getErrorCodeName()).append(": ").append(e.getMessage());
+                    }
+                    @Override public void onPlaybackStateChanged(int state) {
+                        if (state == Player.STATE_READY && readyMs < 0) readyMs = ms(prepNanos);
+                    }
+                });
+                playerView.setPlayer(player);
+            }
             player.setMediaItem(MediaItem.fromUri(url));
             prepNanos = System.nanoTime();
             player.prepare();
@@ -134,7 +188,7 @@ public class MainActivity extends Activity {
                 report.append("PLAYBACK_").append(ok ? "OK" : "FAIL").append(" state=").append(name)
                       .append(" pos=").append(pos).append("ms ttf=").append(readyMs).append("ms");
                 if (playerErr.length() > 0) report.append(" err=").append(playerErr);
-                finishReport();   // keep the player running so the emulator screenshot captures live video
+                finishReport();
             }, 9000);
         } catch (Throwable t) {
             report.append("PLAYBACK_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
@@ -149,6 +203,5 @@ public class MainActivity extends Activity {
             java.io.FileWriter w = new java.io.FileWriter(f); w.write(r); w.close();
         } catch (Throwable ignored) {}
         Log.i(TAG, "MARKER\n" + r);
-        runOnUiThread(() -> tv.setText(r));
     }
 }
