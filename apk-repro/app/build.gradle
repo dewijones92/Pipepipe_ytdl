@@ -33,5 +33,7 @@ android {
 dependencies {
     implementation 'io.github.junkfood02.youtubedl-android:library:0.17.3'
     implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3'
-    implementation 'androidx.media3:media3-exoplayer:1.4.1'  // play the yt-dlp-resolved URL
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'      // play the yt-dlp-resolved URL
+    implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'  // live streams (HLS)
+    implementation 'androidx.media3:media3-exoplayer-dash:1.4.1' // adaptive (DASH)
 }
