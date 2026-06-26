@@ -31,3 +31,21 @@ fail() { printf 'FAIL: %s\n' "$*"; FAILED=1; }
 # termux deb pool prefix: libfoo -> libf, foo -> f
 poolpre(){ case "$1" in lib*) echo "${1:0:4}";; *) echo "${1:0:1}";; esac; }
 termux_prefix(){ echo "$WORK/termux-$1/data/data/com.termux/files/usr"; }  # $1 = arch
+
+# Ensure an x86 emulator for the given sdk image is booted; leaves a device online.
+boot_emulator(){ # $1 avd-name  $2 sdk-image-id
+  local avd="$1" img="$2" imgdir="$ANDROID_HOME/${2//;//}"
+  if "$ADB" get-state >/dev/null 2>&1; then echo "  emulator already online"; return 0; fi
+  [ -d "$imgdir" ] || { echo "  installing $img"; yes | "$SDKMANAGER" "$img" >/dev/null 2>&1 || true; }
+  "$AVDMANAGER" list avd 2>/dev/null | grep -q "Name: $avd" || \
+    echo no | "$AVDMANAGER" create avd -n "$avd" -k "$img" --force >/dev/null 2>&1
+  echo "  booting $avd (headless)..."
+  "$EMULATOR" -avd "$avd" -no-window -no-audio -no-boot-anim -no-snapshot \
+    -gpu swiftshader_indirect -no-metrics >/dev/null 2>&1 &
+  "$ADB" wait-for-device
+  local i=0
+  until [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
+    i=$((i+1)); [ "$i" -ge 180 ] && { echo "  boot TIMEOUT"; return 1; }; sleep 2
+  done
+  echo "  booted: API $("$ADB" shell getprop ro.build.version.sdk | tr -d '\r') $("$ADB" shell getprop ro.product.cpu.abi | tr -d '\r')"
+}
