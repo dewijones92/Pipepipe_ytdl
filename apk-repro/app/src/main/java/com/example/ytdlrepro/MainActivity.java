@@ -45,6 +45,11 @@ public class MainActivity extends Activity {
                 Log.e(TAG, "MARKER exception\n" + sw);
             }
             final String r = result;
+            try { // also write full result to a pullable file (logcat truncates long lines)
+                java.io.File f = new java.io.File(getExternalFilesDir(null), "result.txt");
+                java.io.FileWriter fw = new java.io.FileWriter(f);
+                fw.write(r); fw.close();
+            } catch (Throwable ignored) {}
             Log.i(TAG, "MARKER " + r);
             runOnUiThread(() -> tv.setText(r));
         }, "ytdl-repro").start();

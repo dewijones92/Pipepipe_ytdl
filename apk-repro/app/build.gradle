@@ -20,7 +20,13 @@ android {
 
     // youtubedl-android reads libpython.zip.so from the on-disk native lib dir,
     // so native libs must be extracted at install time (AGP defaults to false).
-    packaging { jniLibs { useLegacyPackaging = true } }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // our patched python package (jniLibs/) must win over the AAR's
+            pickFirsts += ['**/libpython.zip.so', '**/libpython.so']
+        }
+    }
 }
 
 dependencies {
