@@ -31,6 +31,8 @@ scripts/30_symbol_gap.sh         # static: prove the shim covers the >API-23 gap
 scripts/10_test_floor_x86.sh     # API-23 x86 emulator: API-24 lib is rejected, API-23 lib loads
 scripts/11_test_ladder_x86.sh    # API-23 x86 emulator: python -> ssl -> yt-dlp -> YouTube
 scripts/20_test_ladder_arm64.sh  # qemu-user: arm64 bionic -> python -> ssl -> yt-dlp -> YouTube
+scripts/50_build_fixed_python.sh # build the API-23-fixed youtubedl-android python for apk-repro/
+# then: cd apk-repro && ./gradlew :app:assembleDebug   # real APK: youtubedl-android #304 fixed on API 23
 ```
 
 Captured evidence is committed under [`proof/`](proof/). See [`docs/findings.md`](docs/findings.md) for the full write-up.
@@ -49,4 +51,5 @@ Captured evidence is committed under [`proof/`](proof/). See [`docs/findings.md`
 ## Status
 
 - **yt-dlp-on-API-23**: proven + reproducible. All four suites pass on a real API-23 target — captured in [`proof/`](proof/).
+- **youtubedl-android [#304](https://github.com/yausername/youtubedl-android/issues/304) (real APK)**: reproduced *and fixed* on Android 6.0 — [`apk-repro/`](apk-repro/) extracts a YouTube video on API 23 (`RESULT_OK title=Me at the zoo`). Fix builder: [`scripts/50_build_fixed_python.sh`](scripts/50_build_fixed_python.sh); evidence: [`proof/40_apk_repro_304.md`](proof/40_apk_repro_304.md), [`proof/41_apk_fix_304.md`](proof/41_apk_fix_304.md).
 - **SponsorBlock-on-download**: researched + designed ([`docs/sponsorblock-download-design.md`](docs/sponsorblock-download-design.md)); implementation pending.
