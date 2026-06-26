@@ -24,11 +24,13 @@ android {
         jniLibs {
             useLegacyPackaging = true
             // our patched python package (jniLibs/) must win over the AAR's
-            pickFirsts += ['**/libpython.zip.so', '**/libpython.so']
+            pickFirsts += ['**/libpython.zip.so', '**/libpython.so',
+                           '**/libffmpeg.zip.so', '**/libffmpeg.so', '**/libffprobe.so']
         }
     }
 }
 
 dependencies {
     implementation 'io.github.junkfood02.youtubedl-android:library:0.17.3'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3'
 }

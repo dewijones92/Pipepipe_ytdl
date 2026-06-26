@@ -4,7 +4,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- youtubedl-android declares minSdk 24; we deliberately run on 23 to reproduce #304 -->
-    <uses-sdk tools:overrideLibrary="com.yausername.youtubedl_android,com.yausername.youtubedl_common" />
+    <uses-sdk tools:overrideLibrary="com.yausername.youtubedl_android,com.yausername.youtubedl_common,com.yausername.ffmpeg" />
 
     <application
         android:allowBackup="false"
