@@ -1,9 +1,6 @@
 # Pipepipe_ytdl
 
-Experiments and tooling around **PipePipe** (an Android NewPipe fork) and **yt-dlp on old Android**. Two strands:
-
-1. **SponsorBlock-on-download for PipePipe** — *the original goal*: cut SponsorBlock segments out of files at download time. Designed (FFmpeg post-processing approach); **not yet implemented**.
-2. **Running yt-dlp on Android 6.0 / API 23** — *a side-quest, now proven*: "can modern yt-dlp run below its supposed API-24 floor?" Answer: **yes**, with a ~8-function shim. Reproducible scripts + evidence live here.
+Proof and tooling for **running yt-dlp on old Android (6.0 / API 23)** — below its supposed API-24 floor — including a working fix for **youtubedl-android [#304](https://github.com/yausername/youtubedl-android/issues/304)** (the "cannot locate symbol … libpython" crash on API 23). Reproducible scripts + evidence live here.
 
 ## TL;DR — what's proven
 
@@ -52,4 +49,4 @@ Captured evidence is committed under [`proof/`](proof/). See [`docs/findings.md`
 
 - **yt-dlp-on-API-23**: proven + reproducible. All four suites pass on a real API-23 target — captured in [`proof/`](proof/).
 - **youtubedl-android [#304](https://github.com/yausername/youtubedl-android/issues/304) (real APK)**: reproduced *and fixed* on Android 6.0 — [`apk-repro/`](apk-repro/) extracts a YouTube video on API 23 (`RESULT_OK title=Me at the zoo`). Fix builder: [`scripts/50_build_fixed_python.sh`](scripts/50_build_fixed_python.sh); evidence: [`proof/40_apk_repro_304.md`](proof/40_apk_repro_304.md), [`proof/41_apk_fix_304.md`](proof/41_apk_fix_304.md).
-- **SponsorBlock-on-download**: researched + designed ([`docs/sponsorblock-download-design.md`](docs/sponsorblock-download-design.md)); implementation pending.
+- **Upstreamed:** [yausername/youtubedl-android#351](https://github.com/yausername/youtubedl-android/pull/351) — PR with the API-23 fix (shim + page-pad + minSdk 24→23).
