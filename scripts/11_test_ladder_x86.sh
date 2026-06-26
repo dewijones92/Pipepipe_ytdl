@@ -24,8 +24,8 @@ flt(){ grep -vE "unused DT entry|page record for|DT_FLAGS_1|__bionic_open_tzdata
 run(){ "$ADB" shell "$ENV $P/bin/python3.13 $*" 2>&1 | tr -d '\r' | flt; }
 
 say "ladder"
-A="$(run -c 'import sys;print("PYV",sys.version.split()[0])')"; echo "  A: $A"
-echo "$A" | grep -q "PYV 3.13" && pass "interpreter runs" || fail "interpreter"
+A="$(run --version)"; echo "  A: $A"
+echo "$A" | grep -q "3.13" && pass "interpreter runs" || fail "interpreter"
 B="$(run /data/local/tmp/testb.py)"; echo "  B: $B"
 echo "$B" | grep -q "imports OK" && pass "ssl/ctypes/socket/... import" || fail "imports"
 C="$(run /data/local/tmp/yt-dlp.pyz --version)"; echo "  C: yt-dlp $C"

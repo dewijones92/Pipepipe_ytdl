@@ -1,0 +1,17 @@
+
+== extract bionic from system image + assemble arm64 root ==
+  bionic libc: 1032384 bytes
+
+== ladder (aarch64) ==
+  A: PYV 3.13.13 aarch64
+PASS: aarch64 interpreter runs
+  B: imports OK -> ssl/ctypes/socket/hashlib/lzma/bz2/sqlite3/zlib/decimal
+openssl: OpenSSL 3.6.3 9 Jun 2026
+ctypes libffi works: True
+PASS: ssl/ctypes/socket/... import
+  C: yt-dlp 2026.06.09
+PASS: yt-dlp runs
+  D: extract -> Me at the zoo
+PASS: yt-dlp extracts from YouTube (aarch64)
+
+== RESULT: PASS ==

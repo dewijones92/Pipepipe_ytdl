@@ -1,0 +1,8 @@
+
+== Cross-arch symbol gap analysis ==
+  x86_64  libpython gap vs API-23 base libs : lockf preadv pwritev
+PASS: x86_64: shim covers the entire gap
+  arm64  libpython gap vs API-23 base libs : lockf memfd_create preadv pwritev
+PASS: arm64: shim covers the entire gap
+
+== RESULT: PASS ==

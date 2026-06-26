@@ -1,0 +1,14 @@
+
+== API-23 x86_64 emulator: dlopen floor test ==
+  booting sbtest23 (headless)...
+  booted: API 23 x86_64
+/home/dewi/code/Pipepipe_ytdl/work/bin/loader: 1 file pushed, 0 skipped. 18.0 MB/s (5976 bytes in 0.000s)
+/home/dewi/code/Pipepipe_ytdl/work/bin/libneeds24.so: 1 file pushed, 0 skipped. 20.3 MB/s (5000 bytes in 0.000s)
+/home/dewi/code/Pipepipe_ytdl/work/bin/libok23.so: 1 file pushed, 0 skipped. 14.1 MB/s (4680 bytes in 0.000s)
+3 files pushed, 0 skipped. 0.3 MB/s (15656 bytes in 0.049s)
+  libok23    -> DLOPEN_OK
+  libneeds24 -> DLOPEN_FAIL: dlopen failed: cannot locate symbol "getifaddrs" referenced by "/data/local/tmp/libneeds24.so"...
+PASS: API-23 lib loads
+PASS: API-24 lib rejected on API 23
+
+== RESULT: PASS ==

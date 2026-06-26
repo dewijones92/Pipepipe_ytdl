@@ -1,0 +1,24 @@
+
+== API-23 x86_64 emulator: python -> ssl -> yt-dlp -> YouTube ==
+  booting sbtest23 (headless)...
+  booted: API 23 x86_64
+
+== push Termux prefix + shim + yt-dlp ==
+/home/dewi/code/Pipepipe_ytdl/work/termux-x86_64/data/data/com.termux/files/usr/: 2231 files pushed, 0 skipped. 99.3 MB/s (39924766 bytes in 0.383s)
+/home/dewi/code/Pipepipe_ytdl/work/bin/libshim-x86_64.so: 1 file pushed, 0 skipped. 126.4 MB/s (6288 bytes in 0.000s)
+/home/dewi/code/Pipepipe_ytdl/work/yt-dlp.pyz: 1 file pushed, 0 skipped. 968.2 MB/s (3056104 bytes in 0.003s)
+/home/dewi/code/Pipepipe_ytdl/src/testb.py: 1 file pushed, 0 skipped. 6.4 MB/s (273 bytes in 0.000s)
+
+== ladder ==
+  A: Python 3.13.13
+PASS: interpreter runs
+  B: imports OK -> ssl/ctypes/socket/hashlib/lzma/bz2/sqlite3/zlib/decimal
+openssl: OpenSSL 3.6.3 9 Jun 2026
+ctypes libffi works: True
+PASS: ssl/ctypes/socket/... import
+  C: yt-dlp 2026.06.09
+PASS: yt-dlp runs
+  D: extract -> Me at the zoo
+PASS: yt-dlp extracts from YouTube
+
+== RESULT: PASS ==
