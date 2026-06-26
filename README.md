@@ -48,5 +48,5 @@ Captured evidence is committed under [`proof/`](proof/). See [`docs/findings.md`
 
 ## Status
 
-- **yt-dlp-on-API-23**: proven (x86_64 + arm64). Scripts being hardened into this repo for reproducibility.
-- **SponsorBlock-on-download**: researched + designed; implementation pending.
+- **yt-dlp-on-API-23**: proven + reproducible. All four suites pass on a real API-23 target — captured in [`proof/`](proof/).
+- **SponsorBlock-on-download**: researched + designed ([`docs/sponsorblock-download-design.md`](docs/sponsorblock-download-design.md)); implementation pending.
