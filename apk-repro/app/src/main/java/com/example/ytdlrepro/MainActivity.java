@@ -2,99 +2,103 @@ package com.example.ytdlrepro;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.TextView;
+
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
 
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
 import com.yausername.youtubedl_android.mapper.VideoInfo;
-import com.yausername.ffmpeg.FFmpeg;
+import com.yausername.youtubedl_android.mapper.VideoFormat;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.net.URL;
 
 /**
- * API-23 (Android 6.0) validation for the patched youtubedl-android:
- *   1. FFMPEG test — init FFmpeg (on-device unzip of the patched libffmpeg.zip.so) and
- *      exec the ffmpeg binary on a real lavfi encode; proves all ~165 ffmpeg libs load
- *      and encode on API 23.
- *   2. YTDLP test — init + getInfo (python extraction) regression.
- * Results are logged (TAG=YTDLREPRO) and written to getExternalFilesDir()/result.txt.
+ * PoC: "yt-dlp as the YouTube backend" on Android 6.0 (API 23), end to end:
+ *   yt-dlp resolves a stream URL on-device  ->  ExoPlayer (media3) plays it.
+ * Reports RESOLVE_* then PLAYBACK_* (state + position) to result.txt / logcat(TAG=YTDLREPRO).
  */
 public class MainActivity extends Activity {
     static final String TAG = "YTDLREPRO";
-    static final String URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"; // "Me at the zoo"
+    static final String VIDEO = "https://www.youtube.com/watch?v=jNQXAC9IVRw"; // "Me at the zoo"
+    private TextView tv;
+    private final StringBuilder report = new StringBuilder();
+    private final StringBuilder playerErr = new StringBuilder();
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        final TextView tv = new TextView(this);
-        tv.setText("running...");
-        setContentView(tv);
-
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        tv = new TextView(this); tv.setText("resolving..."); setContentView(tv);
         new Thread(() -> {
-            String r = ffmpegTest() + "\n\n" + ytdlpTest();
-            try {
-                File f = new File(getExternalFilesDir(null), "result.txt");
-                java.io.FileWriter fw = new java.io.FileWriter(f);
-                fw.write(r); fw.close();
-            } catch (Throwable ignored) {}
-            Log.i(TAG, "MARKER\n" + r);
-            final String rr = r;
-            runOnUiThread(() -> tv.setText(rr));
-        }, "repro").start();
+            String url = resolve();
+            if (url != null) runOnUiThread(() -> startPlayback(url));
+            else finishReport();
+        }, "resolve").start();
     }
 
-    private String ffmpegTest() {
-        try {
-            Log.i(TAG, "MARKER ffmpeg-init");
-            FFmpeg.getInstance().init(getApplication());
-            String binDir = getApplicationInfo().nativeLibraryDir;
-            String ffmpegBin = binDir + "/libffmpeg.so";
-            File ffLib = new File(getNoBackupFilesDir(), "youtubedl-android/packages/ffmpeg/usr/lib");
-            File outFile = new File(getFilesDir(), "ff_out.mp4");
-            outFile.delete();
-            ProcessBuilder pb = new ProcessBuilder(
-                    ffmpegBin, "-hide_banner", "-nostdin",
-                    "-f", "lavfi", "-i", "testsrc=duration=1:size=128x128:rate=10",
-                    "-c:v", "mpeg4", "-y", outFile.getAbsolutePath());
-            pb.redirectErrorStream(true);
-            pb.environment().put("LD_LIBRARY_PATH", ffLib.getAbsolutePath() + ":" + binDir);
-            Log.i(TAG, "MARKER ffmpeg-exec " + ffmpegBin);
-            Process p = pb.start();
-            StringBuilder out = new StringBuilder();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    if (line.startsWith("WARNING: linker:")) continue; // benign API-23 DT_RUNPATH noise
-                    out.append(line).append("\n");
-                }
-            }
-            int exit = p.waitFor();
-            boolean ok = exit == 0 && outFile.exists() && outFile.length() > 0;
-            String tail = out.toString().trim();
-            if (tail.length() > 1200) tail = tail.substring(tail.length() - 1200);
-            return "FFMPEG_" + (ok ? "OK" : "FAIL") + " exit=" + exit
-                    + " out=" + (outFile.exists() ? outFile.length() + "B" : "absent")
-                    + "\n--- ffmpeg output tail ---\n" + tail;
-        } catch (Throwable t) {
-            StringWriter sw = new StringWriter();
-            t.printStackTrace(new PrintWriter(sw));
-            Log.e(TAG, "MARKER ffmpeg-exception\n" + sw);
-            return "FFMPEG_FAIL " + t.getClass().getSimpleName() + ": " + t.getMessage();
-        }
-    }
-
-    private String ytdlpTest() {
+    private String resolve() {
         try {
             YoutubeDL.getInstance().init(getApplication());
-            VideoInfo info = YoutubeDL.getInstance().getInfo(new YoutubeDLRequest(URL));
-            return "YTDLP_OK title=" + (info != null ? info.getTitle() : "<null>");
+            YoutubeDLRequest req = new YoutubeDLRequest(VIDEO);
+            req.addOption("-f", "18/best[ext=mp4]/best");
+            VideoInfo info = YoutubeDL.getInstance().getInfo(req);
+            String u = info.getUrl();
+            if ((u == null || u.isEmpty()) && info.getFormats() != null)
+                for (VideoFormat f : info.getFormats())
+                    if ("18".equals(f.getFormatId())) { u = f.getUrl(); break; }
+            if (u == null || u.isEmpty()) { report.append("RESOLVE_FAIL no url\n"); return null; }
+            report.append("RESOLVE_OK title=").append(info.getTitle())
+                  .append(" host=").append(new URL(u).getHost()).append("\n");
+            return u;
         } catch (Throwable t) {
-            return "YTDLP_FAIL " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            report.append("RESOLVE_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
+            return null;
         }
+    }
+
+    private void startPlayback(String url) {
+        try {
+            tv.setText(report + "\nplaying...");
+            ExoPlayer player = new ExoPlayer.Builder(this).build();
+            player.addListener(new Player.Listener() {
+                @Override public void onPlayerError(PlaybackException e) {
+                    playerErr.append(e.getErrorCodeName()).append(": ").append(e.getMessage());
+                }
+            });
+            player.setMediaItem(MediaItem.fromUri(url));
+            player.prepare();
+            player.setPlayWhenReady(true);
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                int st = player.getPlaybackState();
+                long pos = player.getCurrentPosition(), dur = player.getDuration();
+                String name = st == Player.STATE_READY ? "READY" : st == Player.STATE_BUFFERING ? "BUFFERING"
+                        : st == Player.STATE_ENDED ? "ENDED" : "IDLE";
+                boolean ok = (st == Player.STATE_READY || st == Player.STATE_ENDED) && pos > 0 && playerErr.length() == 0;
+                report.append("PLAYBACK_").append(ok ? "OK" : "FAIL")
+                      .append(" state=").append(name).append(" pos=").append(pos).append("ms dur=").append(dur).append("ms");
+                if (playerErr.length() > 0) report.append(" err=").append(playerErr);
+                player.release();
+                finishReport();
+            }, 9000);
+        } catch (Throwable t) {
+            report.append("PLAYBACK_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+            finishReport();
+        }
+    }
+
+    private void finishReport() {
+        final String r = report.toString();
+        try {
+            File f = new File(getExternalFilesDir(null), "result.txt");
+            java.io.FileWriter w = new java.io.FileWriter(f); w.write(r); w.close();
+        } catch (Throwable ignored) {}
+        Log.i(TAG, "MARKER\n" + r);
+        runOnUiThread(() -> tv.setText(r));
     }
 }
