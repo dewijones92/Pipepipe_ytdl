@@ -51,3 +51,7 @@ Captured evidence is committed under [`proof/`](proof/). See [`docs/findings.md`
 - **youtubedl-android [#304](https://github.com/yausername/youtubedl-android/issues/304) (real APK)**: reproduced *and fixed* on Android 6.0 — [`apk-repro/`](apk-repro/) extracts a YouTube video on API 23 (`RESULT_OK title=Me at the zoo`). Fix builder: [`scripts/50_build_fixed_python.sh`](scripts/50_build_fixed_python.sh); evidence: [`proof/40_apk_repro_304.md`](proof/40_apk_repro_304.md), [`proof/41_apk_fix_304.md`](proof/41_apk_fix_304.md).
 - **Upstreamed:** [yausername/youtubedl-android#351](https://github.com/yausername/youtubedl-android/pull/351) — focused PR with the python API-23 fix (shim + page-pad + minSdk 24→23).
 - **Full API-23 (fork):** [dewijones92/youtubedl-android@master](https://github.com/dewijones92/youtubedl-android) extends the fix to **ffmpeg + aria2c** too. ffmpeg validated *encoding* (`lavfi testsrc → mpeg4`) on a real API-23 device — see [`proof/42_apk_ffmpeg_api23.md`](proof/42_apk_ffmpeg_api23.md). Canonical recipe: the fork's `tools/patch_natives_api23.sh`.
+
+## License
+
+Copyright (C) 2026 dewijones92. Licensed under the **GNU GPL v3.0** — see [`LICENSE`](LICENSE). Aligns with the GPLv3 ecosystem this builds on (NewPipe / PipePipe / youtubedl-android).
