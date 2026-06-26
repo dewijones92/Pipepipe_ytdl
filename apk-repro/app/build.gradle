@@ -36,4 +36,5 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.4.1'      // play the yt-dlp-resolved URL
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'  // live streams (HLS)
     implementation 'androidx.media3:media3-exoplayer-dash:1.4.1' // adaptive (DASH)
+    implementation 'androidx.media3:media3-ui:1.4.1'             // PlayerView (visible surface)
 }

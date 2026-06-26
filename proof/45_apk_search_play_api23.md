@@ -22,3 +22,9 @@ PLAYBACK_OK state=READY pos=7194288ms        (live HLS — position = live edge)
 So the whole loop a NewPipe-style client performs — search, resolve, play (progressive **and**
 live HLS) — runs on **yt-dlp on Android 6.0**. Combined with `proof/44` (progressive video) this
 covers both the static and live paths.
+
+## Visual proof
+The resolved live stream rendering real video frames in a `PlayerView`, in our app
+(`ytdlrepro`) on the API-23 emulator — sourced entirely via on-device yt-dlp:
+
+![yt-dlp-resolved live stream playing on Android 6.0](img/play_api23_lofi.png)

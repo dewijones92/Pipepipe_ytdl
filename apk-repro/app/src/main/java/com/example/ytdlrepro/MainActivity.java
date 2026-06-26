@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
@@ -94,8 +95,11 @@ public class MainActivity extends Activity {
 
     private void startPlayback(String url) {
         try {
-            tv.setText(report + "\nplaying...");
             ExoPlayer player = new ExoPlayer.Builder(this).build();
+            PlayerView pv = new PlayerView(this);   // visible video surface
+            pv.setUseController(false);
+            setContentView(pv);
+            pv.setPlayer(player);
             player.addListener(new Player.Listener() {
                 @Override public void onPlayerError(PlaybackException e) {
                     playerErr.append(e.getErrorCodeName()).append(": ").append(e.getMessage());
@@ -112,8 +116,7 @@ public class MainActivity extends Activity {
                 boolean ok = (st == Player.STATE_READY || st == Player.STATE_ENDED) && pos > 0 && playerErr.length() == 0;
                 report.append("PLAYBACK_").append(ok ? "OK" : "FAIL").append(" state=").append(name).append(" pos=").append(pos).append("ms");
                 if (playerErr.length() > 0) report.append(" err=").append(playerErr);
-                player.release();
-                finishReport();
+                finishReport();   // keep the player running so the emulator screenshot captures live video
             }, 9000);
         } catch (Throwable t) {
             report.append("PLAYBACK_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
