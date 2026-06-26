@@ -33,6 +33,22 @@ live playback · **personalized feeds** subscriptions/recommended/history/notifi
 - yt-dlp + CPython + ffmpeg patched to load on API 23 (issue #304 fix; `proof/40–42`).
 - **End-to-end playback** (`proof/44`): on-device yt-dlp resolves a stream URL → ExoPlayer plays
   it (`PLAYBACK_OK state=READY`, position advancing).
+- **Full client loop** (`proof/45`): on-device yt-dlp **search → resolve → play**, incl. **live
+  HLS**, with the video visibly rendering in a `PlayerView` (screenshot committed).
+
+## Performance (measured, API-23 x86_64 emulator — `proof/45`)
+| phase | time |
+|---|---|
+| `init` (one-time CPython start) | 504 ms |
+| `search` (`ytsearch8`) | 2517 ms |
+| `resolve` (1 video) | 2078 ms |
+| ExoPlayer time-to-ready | 545 ms |
+
+Tap-to-playing ≈ **~2.5 s**. Each yt-dlp call spawns the Python interpreter and runs the full
+extractor, so it's slower than native NewPipeExtractor (sub-second). This is the central UX
+tradeoff. Mitigations (persistent Python process, caching, prefetch-on-hover) are plausible but
+unproven here. Per the user's steer, perf is not a blocker for *feasibility* — but it's the first
+thing a maintainer will raise.
 
 ## Verdict
 - **PipePipe (anonymous):** capability-complete via yt-dlp — incl. danmu (bridge). No writes needed.

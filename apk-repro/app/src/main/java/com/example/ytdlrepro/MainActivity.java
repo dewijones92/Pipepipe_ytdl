@@ -34,21 +34,34 @@ public class MainActivity extends Activity {
     private TextView tv;
     private final StringBuilder report = new StringBuilder();
     private final StringBuilder playerErr = new StringBuilder();
+    private long prepNanos = 0L;     // when prepare() was called
+    private long readyMs = -1L;      // time-to-first-ready since prepare()
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         tv = new TextView(this); tv.setText("searching..."); setContentView(tv);
         new Thread(() -> {
+            long t0 = System.nanoTime();
             try { YoutubeDL.getInstance().init(getApplication()); } catch (Throwable t) {
                 report.append("INIT_FAIL ").append(t.getMessage()); finishReport(); return;
             }
+            long tInit = ms(t0);
+            long t1 = System.nanoTime();
             String[] top = search(QUERY, 8);          // {id, title}
+            long tSearch = ms(t1);
             if (top == null) { finishReport(); return; }
+            long t2 = System.nanoTime();
             String url = resolve(top);                // resolve the top result
+            long tResolve = ms(t2);
             if (url == null) { finishReport(); return; }
+            report.append("TIMING init=").append(tInit).append("ms search=").append(tSearch)
+                  .append("ms resolve=").append(tResolve).append("ms\n");
             runOnUiThread(() -> startPlayback(url));
         }, "client").start();
     }
+
+    /** Elapsed milliseconds since a System.nanoTime() mark. */
+    private static long ms(long startNanos) { return (System.nanoTime() - startNanos) / 1_000_000L; }
 
     /** yt-dlp search -> list of results; returns the top {id,title} or null. */
     private String[] search(String query, int n) {
@@ -104,8 +117,12 @@ public class MainActivity extends Activity {
                 @Override public void onPlayerError(PlaybackException e) {
                     playerErr.append(e.getErrorCodeName()).append(": ").append(e.getMessage());
                 }
+                @Override public void onPlaybackStateChanged(int state) {
+                    if (state == Player.STATE_READY && readyMs < 0) readyMs = ms(prepNanos);
+                }
             });
             player.setMediaItem(MediaItem.fromUri(url));
+            prepNanos = System.nanoTime();
             player.prepare();
             player.setPlayWhenReady(true);
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -114,7 +131,8 @@ public class MainActivity extends Activity {
                 String name = st == Player.STATE_READY ? "READY" : st == Player.STATE_BUFFERING ? "BUFFERING"
                         : st == Player.STATE_ENDED ? "ENDED" : "IDLE";
                 boolean ok = (st == Player.STATE_READY || st == Player.STATE_ENDED) && pos > 0 && playerErr.length() == 0;
-                report.append("PLAYBACK_").append(ok ? "OK" : "FAIL").append(" state=").append(name).append(" pos=").append(pos).append("ms");
+                report.append("PLAYBACK_").append(ok ? "OK" : "FAIL").append(" state=").append(name)
+                      .append(" pos=").append(pos).append("ms ttf=").append(readyMs).append("ms");
                 if (playerErr.length() > 0) report.append(" err=").append(playerErr);
                 finishReport();   // keep the player running so the emulator screenshot captures live video
             }, 9000);
