@@ -1,0 +1,24 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.example.ytdlrepro'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.example.ytdlrepro'
+        minSdk 23                 // below youtubedl-android's declared minSdk 24 (overridden in manifest)
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        ndk { abiFilters 'x86_64' }   // only the emulator ABI we can boot here
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes { debug {} }
+}
+
+dependencies {
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.17.3'
+}

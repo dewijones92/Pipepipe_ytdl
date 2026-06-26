@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    plugins { id 'com.android.application' version '9.2.1' apply false }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()                       // io.github.junkfood02.youtubedl-android
+        maven { url 'https://jitpack.io' }    // com.github.yausername.youtubedl-android (fallback)
+    }
+}
+rootProject.name = 'ytdlrepro'
+include ':app'
