@@ -17,6 +17,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     buildTypes { debug {} }
+
+    // youtubedl-android reads libpython.zip.so from the on-disk native lib dir,
+    // so native libs must be extracted at install time (AGP defaults to false).
+    packaging { jniLibs { useLegacyPackaging = true } }
 }
 
 dependencies {
