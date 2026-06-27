@@ -30,8 +30,8 @@ android {
 }
 
 dependencies {
-    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.5'  // OUR fork (API-23), via mavenLocal
-    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.5'   // OUR fork (API-23), via mavenLocal
+    implementation 'com.github.dewijones92.youtubedl-android:library:v0.18.6-api23-2'  // OUR fork (API-23) via JitPack (com.github.dewijones92.youtubedl-android)
+    implementation 'com.github.dewijones92.youtubedl-android:ffmpeg:v0.18.6-api23-2'   // OUR fork (API-23) via JitPack (com.github.dewijones92.youtubedl-android)
     implementation 'androidx.media3:media3-exoplayer:1.4.1'      // play the yt-dlp-resolved URL
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'  // live streams (HLS)
     implementation 'androidx.media3:media3-exoplayer-dash:1.4.1' // adaptive (DASH)

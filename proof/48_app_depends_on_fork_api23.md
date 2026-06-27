@@ -13,6 +13,27 @@ io.github.junkfood02.youtubedl-android:ffmpeg:0.18.5
 No `pickFirsts` binary overlay. No manifest `minSdk` override (the fork's modules already
 declare `minSdk 23`). The API-23-patched binaries come straight from the fork's AAR.
 
+## Reproducible via JitPack (not just a local machine)
+The fork is built straight from GitHub by [JitPack](https://jitpack.io/#dewijones92/youtubedl-android)
+(a `jitpack.yml` pins JDK 17 for `buildSrc`). `apk-repro` depends on:
+
+```
+com.github.dewijones92.youtubedl-android:library:v0.18.6-api23-2
+com.github.dewijones92.youtubedl-android:ffmpeg:v0.18.6-api23-2
+```
+
+These coordinates exist only on JitPack — a successful `:app:assembleDebug` proves the app builds
+purely from our fork with no local publish. Verified on API 23: `SEARCH_OK`/`RESOLVE_OK`/`PLAYBACK_OK`.
+(`mavenLocal` remains a fallback for iterating on the fork locally.)
+
+## Also fixed: quickjs JS runtime detection (v0.18.6)
+yt-dlp probes `qjs --help` and matched the version anchored at the start of output. On API 23 the
+bionic linker prints "unused DT entry" warnings to stderr (merged into the probe), so the warning
+hid `QuickJS version 2025-04-26` and quickjs was rejected as unsupported (yt-dlp then leans on
+clients that can hit SABR/403s). `YoutubeDL` now points `--js-runtimes` at a tiny generated wrapper
+that runs qjs with stderr dropped → yt-dlp detects `quickjs-2025-04-26`. (The 403s seen during
+testing were transient YouTube rate-limiting, not a code bug — downloads succeed normally.)
+
 ## What depending on the real artifact revealed
 With the overlay gone, **search → resolve → play still worked on API 23**, but
 **download-with-`--sponsorblock-remove` broke** — a real fork bug the overlay had been masking.
