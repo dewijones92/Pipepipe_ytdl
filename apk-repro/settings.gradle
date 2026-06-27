@@ -5,8 +5,9 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        mavenLocal()                         // OUR fork's AARs, published locally: io.github.junkfood02.youtubedl-android:*:0.18.1
         google()
-        mavenCentral()                       // io.github.junkfood02.youtubedl-android
+        mavenCentral()                       // transitive deps (kotlin, androidx, jackson, media3)
         maven { url 'https://jitpack.io' }    // com.github.yausername.youtubedl-android (fallback)
     }
 }

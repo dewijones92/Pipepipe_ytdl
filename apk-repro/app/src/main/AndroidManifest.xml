@@ -3,8 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- youtubedl-android declares minSdk 24; we deliberately run on 23 to reproduce #304 -->
-    <uses-sdk tools:overrideLibrary="com.yausername.youtubedl_android,com.yausername.youtubedl_common,com.yausername.ffmpeg" />
+    <!-- No minSdk override needed: our fork's modules already declare minSdk 23 (API 23 / Android 6.0). -->
 
     <application
         android:allowBackup="false"
