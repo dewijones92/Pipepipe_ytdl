@@ -13,6 +13,12 @@ Search results from on-device yt-dlp, then the tapped result playing — both on
 |---|---|
 | ![search results list](img/search_list_api23.png) | ![tapped result playing](img/search_play_api23.png) |
 
+**Genuine tap (not scripted):** with auto-play disabled (`--ez autoplay false`), a real `adb shell
+input tap` on a list row drove playback. In the run shown, the search's *top* result was
+"Best of lofi hip hop 2021" but the *tapped* row resolved + played "lofi hip hop radio" — a
+different, non-zero index — so the result is the tapped item's, not index 0's. (`PLAYBACK_OK`,
+ttf≈1.0 s.)
+
 ## Result
 ```
 SEARCH_OK n=8  top='lofi hip hop radio 📚 beats to relax/study to'

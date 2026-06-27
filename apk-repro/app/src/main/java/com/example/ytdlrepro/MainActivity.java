@@ -126,7 +126,8 @@ public class MainActivity extends Activity {
                 adapter.clear();
                 for (String[] r : found) adapter.add(r[1]);
                 adapter.notifyDataSetChanged();
-                if (autoPlayPending) {   // prove the full loop headlessly on the first search
+                // `--ez autoplay false` disables auto-play so a real adb tap can drive playback
+                if (autoPlayPending && getIntent().getBooleanExtra("autoplay", true)) {
                     autoPlayPending = false;
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         if (!results.isEmpty()) resolveAndPlay(0);
