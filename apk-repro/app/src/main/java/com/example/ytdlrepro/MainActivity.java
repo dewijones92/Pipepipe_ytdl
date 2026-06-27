@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.media3.common.MediaItem;
@@ -20,6 +21,7 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
 
+import com.yausername.ffmpeg.FFmpeg;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
 import com.yausername.youtubedl_android.YoutubeDLResponse;
@@ -30,10 +32,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * PoC: an *interactive* yt-dlp-backed YouTube mini-client on Android 6.0 (API 23).
- *   type a query -> yt-dlp SEARCH -> tap a result -> yt-dlp RESOLVE -> ExoPlayer PLAY.
- * On launch it auto-runs a default query and auto-plays the top hit, so the whole loop
- * is still verifiable headlessly (writes SEARCH/RESOLVE/PLAYBACK markers to result.txt).
+ * PoC: an *interactive* yt-dlp-backed YouTube mini-client on Android 6.0 (API 23) — one app that
+ * unifies both project goals:
+ *   type a query -> yt-dlp SEARCH -> tap a result -> RESOLVE -> ExoPlayer PLAY
+ *                                 -> long-press a result -> DOWNLOAD with the sponsor cut out.
+ * On launch it auto-runs a default query and auto-plays the top hit, so the loop is still
+ * verifiable headlessly (writes SEARCH/RESOLVE/PLAYBACK/DOWNLOAD markers to result.txt).
  */
 public class MainActivity extends Activity {
     static final String TAG = "YTDLREPRO";
@@ -56,10 +60,15 @@ public class MainActivity extends Activity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         setContentView(buildUi());
         new Thread(() -> {
-            try { YoutubeDL.getInstance().init(getApplication()); } catch (Throwable t) {
+            try {
+                YoutubeDL.getInstance().init(getApplication());
+                FFmpeg.getInstance().init(getApplication());   // needed for --sponsorblock-remove (download)
+            } catch (Throwable t) {
                 report.append("INIT_FAIL ").append(t.getMessage()); finishReport(); return;
             }
-            runOnUiThread(() -> { queryBox.setText(QUERY); doSearch(QUERY); });
+            String q = getIntent().getStringExtra("query");
+            final String query = (q == null || q.trim().isEmpty()) ? QUERY : q.trim();
+            runOnUiThread(() -> { queryBox.setText(query); doSearch(query); });
         }, "init").start();
     }
 
@@ -80,10 +89,19 @@ public class MainActivity extends Activity {
         bar.addView(go, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        TextView hint = new TextView(this);
+        hint.setText("tap = play   ·   long-press = download without sponsor");
+        hint.setPadding(16, 8, 16, 8);
+        root.addView(hint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         ListView list = new ListView(this);
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
         list.setAdapter(adapter);
         list.setOnItemClickListener((p, v, pos, id) -> { if (pos < results.size()) resolveAndPlay(pos); });
+        list.setOnItemLongClickListener((p, v, pos, id) -> {
+            if (pos < results.size()) downloadNoSponsor(pos);
+            return true;
+        });
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         playerView = new PlayerView(this);
@@ -126,12 +144,17 @@ public class MainActivity extends Activity {
                 adapter.clear();
                 for (String[] r : found) adapter.add(r[1]);
                 adapter.notifyDataSetChanged();
-                // `--ez autoplay false` disables auto-play so a real adb tap can drive playback
-                if (autoPlayPending && getIntent().getBooleanExtra("autoplay", true)) {
+                // First (auto) search can self-drive an action for headless verification:
+                //   `--es action download` -> download top result w/o sponsor (long-press equivalent)
+                //   default                 -> auto-play top result (`--ez autoplay false` to disable)
+                if (autoPlayPending) {
                     autoPlayPending = false;
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (!results.isEmpty()) resolveAndPlay(0);
-                    }, 12000);   // leave time to screenshot the populated list first
+                    final Handler h = new Handler(Looper.getMainLooper());
+                    if ("download".equals(getIntent().getStringExtra("action"))) {
+                        h.postDelayed(() -> { if (!results.isEmpty()) downloadNoSponsor(0); }, 1000);
+                    } else if (getIntent().getBooleanExtra("autoplay", true)) {
+                        h.postDelayed(() -> { if (!results.isEmpty()) resolveAndPlay(0); }, 12000);
+                    }
                 }
             });
         }, "search").start();
@@ -160,6 +183,46 @@ public class MainActivity extends Activity {
             final String furl = url;
             runOnUiThread(() -> startPlayback(furl));
         }, "resolve").start();
+    }
+
+    /** The original goal, in-app: download the long-pressed result with the sponsor cut out. */
+    private void downloadNoSponsor(int pos) {
+        final String[] idTitle = results.get(pos);
+        Toast.makeText(this, "downloading (no sponsor): " + idTitle[1], Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                File dir = getExternalFilesDir(null);
+                File[] ex = dir.listFiles();
+                if (ex != null) for (File f : ex) if (f.getName().startsWith("dl_")) f.delete();
+                YoutubeDLRequest req = new YoutubeDLRequest("https://www.youtube.com/watch?v=" + idTitle[0]);
+                req.addOption("-f", "worstaudio");
+                req.addOption("--sponsorblock-remove", "sponsor");
+                req.addOption("-o", new File(dir, "dl_" + idTitle[0] + ".%(ext)s").getAbsolutePath());
+                long t0 = System.nanoTime();
+                YoutubeDLResponse resp = YoutubeDL.getInstance().execute(req);
+                long took = ms(t0);
+                int segs = 0; boolean cut = false;
+                for (String line : resp.getOut().split("\n")) {
+                    if (line.contains("SponsorBlock") && line.contains("Found")) {
+                        for (String tok : line.split("\\s+")) try { segs = Integer.parseInt(tok); break; } catch (NumberFormatException ignored) {}
+                    }
+                    if (line.contains("Removing chapters")) cut = true;
+                }
+                File produced = null;
+                File[] after = dir.listFiles();
+                if (after != null) for (File f : after)
+                    if (f.getName().startsWith("dl_") && !f.getName().contains("uncut")) produced = f;
+                final String msg = "DOWNLOAD_OK segs=" + segs + (cut ? " (sponsor cut)" : "")
+                        + (produced != null ? " file=" + produced.getName() + " size=" + produced.length() : "")
+                        + " " + took + "ms";
+                report.append(msg).append("\n");
+                finishReport();
+                runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
+            } catch (Throwable t) {
+                report.append("DOWNLOAD_FAIL ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append("\n");
+                finishReport();
+            }
+        }, "dl").start();
     }
 
     private void startPlayback(String url) {
